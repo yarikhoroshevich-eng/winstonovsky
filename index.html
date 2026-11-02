@@ -1,0 +1,750 @@
+<?php
+declare(strict_types=1);
+header('Content-Type: text/html; charset=utf-8');
+
+/* ============================================================================
+   WINSTONOVSKY·PRICE — одностраничный прайс-лист в космическом стиле
+   ----------------------------------------------------------------------------
+   Всё собрано в одном файле index.php: разметка, стили и скрипты.
+   Валюта — Telegram Stars. Цены и услуги редактируются в массивах ниже.
+   Требования: PHP 7.4+ (без базы данных и внешних библиотек).
+   ============================================================================ */
+
+/* ------------------------------- НАСТРОЙКИ -------------------------------- */
+
+$site = [
+    'name'  => 'WINSTONOVSKY·PRICE',
+    'title' => 'Winstonovsky — прайс-лист в Telegram Stars',
+    'desc'  => 'Прайс-лист услуг в космическом стиле: ДЕФ (месяц / 3 месяца / навсегда), '
+             . 'OSInt, гайд «Как стать анонимным в сети?» и обучение. Оплата в Telegram Stars.',
+];
+
+/* Ссылка для оформления: клик по любой услуге ведёт в этот чат */
+$telegram = [
+    'url'   => 'https://t.me/managerwinstonovsky',
+    'label' => '@managerwinstonovsky',
+];
+
+/* Главная услуга — три тарифа на выбор */
+$featured = [
+    'name'     => 'ДЕФ',
+    'badge'    => 'Хит орбиты',
+    'desc'     => 'Флагманская услуга с тремя вариантами доступа: месяц, три месяца или навсегда.',
+    'footnote' => 'Оплата единой суммой в Telegram Stars — без скрытых платежей.',
+    'options'  => [
+        /* badge — статичная надпись на плитке (null — без надписи) */
+        ['plan' => 'Месяц',    'price' => 150, 'note' => '1 месяц доступа',   'badge' => null],
+        ['plan' => '3 месяца', 'price' => 300, 'note' => '3 месяца доступа',  'badge' => 'выгода 150'],
+        ['plan' => 'Навсегда', 'price' => 450, 'note' => 'бессрочный доступ', 'badge' => 'лучший тариф'],
+    ],
+];
+
+/* Остальные услуги */
+$services = [
+    [
+        'icon'   => 'eye',
+        'name'   => 'OSInt',
+        'desc'   => 'Разовый платёж за одно приобретение услуги — без подписок и автосписаний.',
+        'price'  => 50,
+        'period' => 'one time',
+    ],
+    [
+        'icon'   => 'mask',
+        'name'   => 'Как стать анонимным в сети?',
+        'desc'   => 'Материал приходит персональной ссылкой сразу после оплаты.',
+        'price'  => 125,
+        'period' => 'personal link',
+    ],
+    [
+        'icon'   => 'cap',
+        'name'   => 'Обучение',
+        'desc'   => 'Одна фиксированная цена — формат и программа согласуются при заказе.',
+        'price'  => 1000,
+        'period' => 'фиксированная цена',
+    ],
+];
+
+/* Блок «Как оформить» */
+$steps = [
+    ['title' => 'Выбери услугу',    'text' => 'Найди нужный тариф в прайс-листе — от разового OSInt до бессрочного ДЕФ.'],
+    ['title' => 'Напиши в Telegram', 'text' => 'Клик по услуге открывает чат с менеджером @managerwinstonovsky — просто пришли свой заказ.'],
+    ['title' => 'Оплати Stars',     'text' => 'Согласуй детали в чате, оплати в Telegram Stars и получи доступ.'],
+];
+
+/* FAQ */
+$faq = [
+    [
+        'q' => 'Как проходит оплата?',
+        'a' => 'Все цены указаны в Telegram Stars. Нажми на нужную услугу — откроется чат с менеджером '
+             . '@managerwinstonovsky в Telegram. Там согласуем детали и выставим счёт на оплату.',
+    ],
+    [
+        'q' => 'Почему у ДЕФ три цены?',
+        'a' => 'Это один тариф с разными вариантами доступа: 150 stars за месяц, 300 stars за 3 месяца '
+             . '(выгода 150 stars) и 450 stars бессрочно. Выбирай срок, который удобнее.',
+    ],
+    [
+        'q' => 'Что значит «одноразово» у OSInt?',
+        'a' => 'OSInt оплачивается разово: 50 stars за каждое приобретение услуги. Подписок и автосписаний нет.',
+    ],
+    [
+        'q' => 'Как я получу гайд «Как стать анонимным в сети?»',
+        'a' => 'После оплаты 125 stars материал придёт персональной ссылкой — доступ будет только у тебя.',
+    ],
+    [
+        'q' => 'Что входит в обучение за 1000 stars?',
+        'a' => 'Стоимость фиксированная — 1000 stars. Формат и программа согласуются индивидуально при заказе.',
+    ],
+];
+
+/* ------------------------------- ХЕЛПЕРЫ ---------------------------------- */
+
+function e(string $v): string
+{
+    return htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+}
+
+/* Контурные иконки (упрощённый стиль Lucide) */
+function icon_svg(string $name, string $cls = 'ic'): string
+{
+    static $paths = [
+        'orbit'    => '<circle cx="12" cy="12" r="4"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-22 12 12)"/>',
+        'zap'      => '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+        'eye'      => '<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+        'mask'     => '<path d="M10.7 5.1c.4-.06.9-.1 1.3-.1 6.5 0 10 7 10 7a17 17 0 0 1-2.2 2.9M6.6 6.6A16.6 16.6 0 0 0 2 12s3.5 7 10 7c1.9 0 3.7-.6 5.4-1.6"/><path d="M9.9 9.9a3 3 0 1 0 4.2 4.2"/><path d="m2 2 20 20"/>',
+        'cap'      => '<path d="M22 9.5 12 4.5l-10 5 10 5 10-5Z"/><path d="M6 11.8V17c0 1.66 2.69 3 6 3s6-1.34 6-3v-5.2"/><path d="M22 9.5V15"/>',
+        'layers'   => '<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
+        'sparkles' => '<path d="M12 3l1.9 5.6 5.6 1.9-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3Z"/><path d="M19 3v3M20.5 4.5h-3"/>',
+        'send'     => '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+        'arrow'    => '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+        'plus'     => '<path d="M12 5v14M5 12h14"/>',
+    ];
+    $p = $paths[$name] ?? '';
+    return '<svg class="' . e($cls) . '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+         . ' stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">' . $p . '</svg>';
+}
+
+/* Золотая звезда — иконка Telegram Stars */
+function star_svg(string $cls = 'star'): string
+{
+    return '<svg class="' . e($cls) . '" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+         . '<path d="M12 2.5l2.83 6.1 6.67.86-4.9 4.6 1.26 6.6L12 17.4l-5.86 3.26 1.26-6.6-4.9-4.6 6.67-.86L12 2.5z"/></svg>';
+}
+?>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#040117">
+<meta name="description" content="<?= e($site['desc']) ?>">
+<meta property="og:title" content="<?= e($site['title']) ?>">
+<meta property="og:description" content="<?= e($site['desc']) ?>">
+<meta property="og:type" content="website">
+<title><?= e($site['title']) ?></title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23fbbf24' d='M12 2.5l2.83 6.1 6.67.86-4.9 4.6 1.26 6.6L12 17.4l-5.86 3.26 1.26-6.6-4.9-4.6 6.67-.86L12 2.5z'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================ БАЗА ============================ */
+:root{
+  --bg:#040117;
+  --bg-soft:#07021a;
+  --card:rgba(255,255,255,.035);
+  --border:rgba(255,255,255,.10);
+  --text:#e2e8f0;
+  --muted:#94a3b8;
+  --dim:#7c8aa5;
+  --violet:#a78bfa;
+  --fuchsia:#e879f9;
+  --cyan:#67e8f9;
+  --gold:#fbbf24;
+  --font-body:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  --font-display:'Unbounded',var(--font-body);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+@media (prefers-reduced-motion: no-preference){
+  html{scroll-behavior:smooth}
+}
+html{scroll-padding-top:84px;color-scheme:dark;scrollbar-color:#7c3aed #07021a;scrollbar-width:thin}
+::-webkit-scrollbar{width:10px}
+::-webkit-scrollbar-track{background:#07021a}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#7c3aed,#d946ef);border-radius:8px;border:2px solid #07021a}
+::selection{background:rgba(217,70,239,.35);color:#fff}
+body{
+  font-family:var(--font-body);
+  background:var(--bg);
+  color:var(--text);
+  min-height:100svh;
+  display:flex;
+  flex-direction:column;
+  overflow-x:hidden;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+:focus-visible{outline:2px solid #f0abfc;outline-offset:3px;border-radius:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ============================ КОСМОС: ФОН ============================ */
+.space{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.space-base{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(1200px 800px at 80% -10%, rgba(139,92,246,.16), transparent 60%),
+    radial-gradient(900px 700px at -10% 30%, rgba(217,70,239,.10), transparent 55%),
+    radial-gradient(1000px 800px at 50% 110%, rgba(34,211,238,.08), transparent 60%);
+}
+#starfield{position:absolute;inset:0;width:100%;height:100%}
+.nebula{position:absolute;border-radius:50%;filter:blur(120px)}
+.nebula-1{top:-140px;right:-10%;width:480px;height:480px;background:rgba(217,70,239,.16);animation:glow-pulse 6s ease-in-out infinite}
+.nebula-2{top:45%;left:-14%;width:430px;height:430px;background:rgba(139,92,246,.15)}
+.nebula-3{bottom:-10%;right:16%;width:380px;height:380px;background:rgba(34,211,238,.11)}
+/* Планеты живут внутри hero — уплывают вместе с первым экраном */
+.hero{position:relative;overflow:hidden}
+.planet{position:absolute}
+.planet-big{top:15%;right:4%;animation:float-y 7s ease-in-out infinite}
+.planet-big .sphere{
+  position:relative;width:176px;height:176px;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%, #c4b5fd 0%, #8b5cf6 38%, #5b21b6 72%, #2e1065 100%);
+  box-shadow:0 0 90px rgba(139,92,246,.45);
+}
+.planet-big .ring{
+  position:absolute;top:50%;left:50%;width:185%;height:46%;
+  transform:translate(-50%,-50%) rotate(-24deg);
+  border:3px solid rgba(196,181,253,.35);
+  border-radius:50%;
+  box-shadow:0 0 24px rgba(196,181,253,.25);
+}
+.planet-small{bottom:18%;left:5%;animation:float-y-soft 9s ease-in-out infinite}
+.planet-small .sphere{
+  width:64px;height:64px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #a5f3fc 0%, #22d3ee 45%, #0e7490 100%);
+  box-shadow:0 0 50px rgba(34,211,238,.35);
+}
+.orbit{top:12%;left:9%;width:170px;height:170px;animation:orbit-spin 26s linear infinite}
+.orbit .moon{
+  position:absolute;top:-7px;left:50%;width:13px;height:13px;margin-left:-7px;border-radius:50%;
+  background:#e2e8f0;box-shadow:0 0 12px rgba(226,232,240,.8);
+}
+@media (max-width:900px){
+  .planet-big,.planet-small,.orbit{display:none}
+}
+
+/* ============================ КАРКАС ============================ */
+.page{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100svh}
+main{flex:1}
+.container{max-width:1120px;margin:0 auto;padding:0 20px}
+.section{padding:92px 0;scroll-margin-top:80px}
+.section-head{text-align:center;margin-bottom:50px}
+.eyebrow{font-size:12px;letter-spacing:.35em;text-transform:uppercase;color:#f0abfc;font-weight:800}
+.section-head h2{font-family:var(--font-display);font-weight:800;font-size:clamp(24px,4vw,40px);color:#fff;margin:14px 0 12px}
+.section-sub{color:var(--muted);max-width:600px;margin:0 auto;font-size:15px}
+
+/* ============================ ШАПКА ============================ */
+.site-header{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  background:rgba(5,1,15,.66);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.header-inner{max-width:1120px;margin:0 auto;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+.logo{display:flex;align-items:center;gap:11px;text-decoration:none}
+.logo-badge{
+  width:36px;height:36px;border-radius:12px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(135deg,#7c3aed,#c026d3,#22d3ee);
+  box-shadow:0 0 18px rgba(168,85,247,.5);
+}
+.logo-badge .ic{width:20px;height:20px}
+.logo-name{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:.12em;color:#fff}
+.logo-name em{font-style:normal;color:#e879f9}
+.site-nav{display:flex;align-items:center;gap:20px}
+.site-nav a{color:#cbd5e1;text-decoration:none;font-size:14px;font-weight:600;transition:color .2s}
+.site-nav a:hover{color:#fff}
+@media (max-width:420px){
+  .logo-name{display:none}
+  .site-nav{gap:14px}
+  .site-nav a{font-size:13px}
+}
+
+/* ============================ ГЕРОЙ ============================ */
+.hero{min-height:100svh;display:grid;place-items:center;text-align:center;padding:130px 0 70px}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:9px;padding:9px 17px;border-radius:999px;
+  border:1px solid rgba(167,139,250,.35);background:rgba(139,92,246,.12);
+  color:#ddd6fe;font-size:13px;font-weight:700;
+}
+.hero-badge .ic{width:15px;height:15px;color:#f0abfc}
+.hero h1{
+  font-family:var(--font-display);font-weight:800;color:#fff;
+  font-size:clamp(30px,6vw,62px);line-height:1.16;margin:24px auto 18px;max-width:920px;
+}
+.grad-text{
+  background:linear-gradient(90deg,#c4b5fd,#f0abfc,#67e8f9,#c4b5fd);
+  background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:gradient-pan 9s ease infinite;
+}
+.hero-sub{max-width:640px;margin:0 auto;color:var(--muted);font-size:clamp(15px,2vw,18px)}
+.hero-actions{margin-top:36px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  padding:14px 26px;border-radius:14px;font-weight:800;font-size:15px;text-decoration:none;
+  transition:transform .2s, box-shadow .2s, background .2s, border-color .2s;
+}
+.btn .ic{width:17px;height:17px}
+.btn-primary{
+  background:linear-gradient(135deg,#7c3aed,#c026d3);color:#fff;
+  box-shadow:0 8px 30px rgba(147,51,234,.4);
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 42px rgba(147,51,234,.55)}
+.btn-ghost{
+  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);color:var(--text);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+}
+.btn-ghost:hover{border-color:rgba(240,171,252,.5);transform:translateY(-2px)}
+.hero-stats{margin-top:48px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.stat{
+  display:flex;align-items:center;gap:11px;padding:13px 21px;border-radius:16px;
+  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+}
+.stat .ic{width:19px;height:19px;color:#c4b5fd}
+.stat b{font-family:var(--font-display);font-size:17px;color:#fff;font-weight:700}
+.stat span{font-size:13px;color:var(--muted);font-weight:600}
+
+/* ============================ ПРАЙС: ГЛАВНАЯ УСЛУГА ============================ */
+.featured{
+  position:relative;border-radius:26px;padding:1px;
+  background:linear-gradient(120deg,rgba(139,92,246,.6),rgba(217,70,239,.6),rgba(34,211,238,.5));
+  box-shadow:0 0 70px rgba(147,51,234,.18);
+}
+.featured-inner{border-radius:25px;background:rgba(9,4,32,.93);padding:clamp(22px,4vw,40px)}
+.featured-head{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.icon-tile{
+  width:52px;height:52px;border-radius:16px;display:grid;place-items:center;color:#e9d5ff;
+  background:linear-gradient(135deg,rgba(139,92,246,.25),rgba(217,70,239,.25));
+  border:1px solid rgba(167,139,250,.35);
+}
+.icon-tile .ic{width:26px;height:26px}
+.featured-head h3{font-family:var(--font-display);font-weight:800;font-size:clamp(21px,3vw,28px);color:#fff}
+.badge-hit{
+  padding:6px 13px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  background:linear-gradient(135deg,rgba(217,70,239,.2),rgba(139,92,246,.2));
+  border:1px solid rgba(240,171,252,.4);color:#f0abfc;
+}
+.featured-desc{color:var(--muted);margin:14px 0 30px;max-width:640px;font-size:15px}
+.options{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px}
+.option{
+  position:relative;display:flex;flex-direction:column;gap:9px;text-align:left;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.1);
+  border-radius:18px;padding:24px 22px;color:inherit;text-decoration:none;cursor:pointer;
+  transition:transform .25s, border-color .25s, background .25s, box-shadow .25s;
+}
+.option:hover{
+  transform:translateY(-4px);border-color:rgba(240,171,252,.5);
+  background:rgba(217,70,239,.07);box-shadow:0 14px 40px rgba(217,70,239,.15);
+}
+.option-badge{
+  position:absolute;top:-11px;right:14px;padding:4px 11px;border-radius:999px;
+  font-size:11px;font-weight:800;background:#1e1145;
+  border:1px solid rgba(240,171,252,.45);color:#f0abfc;
+}
+.option-period{font-size:13px;color:#c4b5fd;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+.price-row{display:flex;align-items:center;gap:9px}
+.star{color:var(--gold);filter:drop-shadow(0 0 8px rgba(251,191,36,.55))}
+.price-row .star{width:22px;height:22px;flex-shrink:0}
+.price-num{font-family:var(--font-display);font-weight:800;color:#fff;font-size:clamp(26px,3.4vw,34px);line-height:1}
+.price-unit{font-size:14px;color:var(--muted);font-weight:700}
+.option-note{font-size:13px;color:var(--dim);line-height:1.5}
+.option-cta{display:inline-flex;align-items:center;gap:7px;margin-top:3px;font-size:12px;font-weight:800;color:#e9d5ff;opacity:.85}
+.option-cta .ic{width:14px;height:14px}
+.featured-foot{margin-top:24px;display:flex;align-items:center;gap:9px;color:var(--dim);font-size:13px}
+.featured-foot .star{width:16px;height:16px;flex-shrink:0}
+
+/* ============================ ПРАЙС: ОСТАЛЬНЫЕ УСЛУГИ ============================ */
+.services{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:18px}
+.svc{
+  display:flex;flex-direction:column;gap:12px;padding:26px;border-radius:22px;
+  background:var(--card);border:1px solid var(--border);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  transition:transform .25s, border-color .25s, box-shadow .25s;
+}
+.svc:hover{transform:translateY(-4px);border-color:rgba(167,139,250,.45);box-shadow:0 14px 44px rgba(139,92,246,.14)}
+.svc-head{display:flex;align-items:center;gap:13px}
+.svc-head .icon-tile{width:46px;height:46px;border-radius:14px}
+.svc-head .icon-tile .ic{width:23px;height:23px}
+.svc-name{font-family:var(--font-display);font-weight:700;font-size:16px;line-height:1.4;color:#fff}
+.svc-desc{font-size:14px;color:var(--muted);line-height:1.6;flex:1}
+.svc .price-row{margin-top:4px}
+.svc .price-row .star{width:20px;height:20px}
+.svc .price-num{font-size:30px}
+.svc-period{font-size:13px;color:#c4b5fd;font-weight:700}
+.btn-buy{
+  margin-top:8px;width:100%;padding:12px 18px;border-radius:14px;text-decoration:none;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid rgba(167,139,250,.4);background:rgba(139,92,246,.1);
+  color:#e9d5ff;font-weight:800;font-size:14px;
+  transition:background .2s, border-color .2s, color .2s, transform .2s;
+}
+.btn-buy .ic{width:16px;height:16px}
+.btn-buy:hover{background:rgba(139,92,246,.22);border-color:rgba(240,171,252,.6);color:#fff;transform:translateY(-2px)}
+
+/* ============================ КАК ОФОРМИТЬ ============================ */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.step{padding:28px 26px;border-radius:20px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03)}
+.step-num{
+  display:block;font-family:var(--font-display);font-weight:800;font-size:14px;margin-bottom:14px;
+  background:linear-gradient(90deg,#c4b5fd,#f0abfc);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.step h3{font-family:var(--font-display);font-weight:700;font-size:16px;color:#fff;margin-bottom:9px}
+.step p{font-size:14px;color:var(--muted);line-height:1.65}
+
+/* ============================ FAQ ============================ */
+.faq{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.faq details{
+  border:1px solid rgba(255,255,255,.1);border-radius:16px;
+  background:rgba(255,255,255,.03);overflow:hidden;
+}
+.faq summary{
+  list-style:none;cursor:pointer;padding:19px 22px;
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  font-weight:700;color:var(--text);font-size:15px;
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:hover{color:#fff}
+.faq .ic{width:21px;height:21px;color:#c4b5fd;flex-shrink:0;transition:transform .3s}
+.faq details[open] .ic{transform:rotate(45deg)}
+.faq-a{padding:0 22px 20px;color:var(--muted);font-size:14px;line-height:1.7}
+
+/* ============================ ФУТЕР ============================ */
+.site-footer{
+  margin-top:auto;border-top:1px solid rgba(255,255,255,.06);
+  background:rgba(5,1,15,.6);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+}
+.footer-inner{
+  max-width:1120px;margin:0 auto;padding:26px 20px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;
+}
+.footer-brand{display:flex;align-items:center;gap:9px;color:#fff;font-family:var(--font-display);font-weight:700;font-size:14px;letter-spacing:.1em}
+.footer-brand .logo-badge{width:28px;height:28px;border-radius:9px}
+.footer-brand .logo-badge .ic{width:15px;height:15px}
+.footer-copy{font-size:13px;color:var(--dim)}
+.footer-note{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--dim)}
+.footer-note .star{width:14px;height:14px}
+@media (min-width:720px){
+  .footer-inner{flex-direction:row;justify-content:space-between;text-align:left}
+}
+
+/* ============================ АНИМАЦИИ ============================ */
+@keyframes float-y{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes float-y-soft{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes orbit-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes glow-pulse{0%,100%{opacity:.55}50%{opacity:.95}}
+@keyframes gradient-pan{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
+.reveal.visible{opacity:1;transform:none}
+@media (prefers-reduced-motion: reduce){
+  .reveal{opacity:1;transform:none;transition:none}
+  .nebula-1,.planet-big,.planet-small,.orbit,.grad-text{animation:none}
+  *{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- Космический фон: туманности, планеты, звёзды -->
+<div class="space" aria-hidden="true">
+  <div class="space-base"></div>
+  <div class="nebula nebula-1"></div>
+  <div class="nebula nebula-2"></div>
+  <div class="nebula nebula-3"></div>
+  <canvas id="starfield"></canvas>
+</div>
+
+<div class="page">
+
+  <!-- Шапка -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="logo" href="#top" aria-label="<?= e($site['name']) ?> — наверх">
+        <span class="logo-badge"><?= icon_svg('orbit') ?></span>
+        <span class="logo-name">WINSTONOVSKY<em>·</em>PRICE</span>
+      </a>
+      <nav class="site-nav" aria-label="Основная навигация">
+        <a href="#services">Услуги</a>
+        <a href="#how">Оплата</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Герой -->
+    <section class="hero" id="top">
+      <div class="planet planet-big" aria-hidden="true"><div class="sphere"></div><div class="ring"></div></div>
+      <div class="planet planet-small" aria-hidden="true"><div class="sphere"></div></div>
+      <div class="orbit" aria-hidden="true"><i class="moon"></i></div>
+      <div class="container">
+        <span class="hero-badge"><?= icon_svg('sparkles') ?> Оплата только в Telegram Stars</span>
+        <h1>Прайс-лист <span class="grad-text">из открытого космоса</span></h1>
+        <p class="hero-sub">Четыре услуги — одна валюта. Нажми на услугу — и оформи заказ
+          в Telegram у менеджера за пару кликов.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#services">Смотреть услуги <?= icon_svg('arrow') ?></a>
+          <a class="btn btn-ghost" href="#how">Как оформить</a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat"><?= icon_svg('layers') ?><b>4</b><span>услуги</span></div>
+          <div class="stat"><?= icon_svg('zap') ?><b>6</b><span>тарифов</span></div>
+          <div class="stat"><?= star_svg('star ic') ?><b>100%</b><span>оплата Stars</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Прайс-лист -->
+    <section class="section" id="services" aria-label="Услуги и тарифы">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Услуги и тарифы</p>
+          <h2>Выбери свой маршрут</h2>
+          <p class="section-sub">Все цены — в Telegram Stars. Нажми на услугу, чтобы оформить заказ в Telegram.</p>
+        </div>
+
+        <!-- ДЕФ: три варианта доступа -->
+        <div class="featured reveal">
+          <div class="featured-inner">
+            <div class="featured-head">
+              <span class="icon-tile"><?= icon_svg('zap') ?></span>
+              <h3><?= e($featured['name']) ?></h3>
+              <span class="badge-hit"><?= e($featured['badge']) ?></span>
+            </div>
+            <p class="featured-desc"><?= e($featured['desc']) ?></p>
+            <div class="options">
+              <?php foreach ($featured['options'] as $opt): ?>
+              <a class="option" href="<?= e($telegram['url']) ?>" target="_blank" rel="noopener"
+                 aria-label="<?= e($featured['name']) ?> — <?= e($opt['plan']) ?>, <?= (int) $opt['price'] ?> stars. Оформить в Telegram">
+                <?php if (!empty($opt['badge'])): ?>
+                <span class="option-badge"><?= e($opt['badge']) ?></span>
+                <?php endif; ?>
+                <span class="option-period"><?= e($opt['plan']) ?></span>
+                <span class="price-row"><?= star_svg() ?><span class="price-num"><?= (int) $opt['price'] ?></span><span class="price-unit">stars</span></span>
+                <span class="option-note"><?= e($opt['note']) ?></span>
+                <span class="option-cta"><?= icon_svg('send') ?> Написать в Telegram</span>
+              </a>
+              <?php endforeach; ?>
+            </div>
+            <p class="featured-foot"><?= star_svg() ?> <?= e($featured['footnote']) ?></p>
+          </div>
+        </div>
+
+        <!-- Остальные услуги -->
+        <div class="services" style="margin-top:20px">
+          <?php foreach ($services as $svc): ?>
+          <article class="svc reveal">
+            <div class="svc-head">
+              <span class="icon-tile"><?= icon_svg($svc['icon']) ?></span>
+              <h3 class="svc-name"><?= e($svc['name']) ?></h3>
+            </div>
+            <p class="svc-desc"><?= e($svc['desc']) ?></p>
+            <div class="price-row"><?= star_svg() ?><span class="price-num"><?= (int) $svc['price'] ?></span><span class="price-unit">stars</span></div>
+            <p class="svc-period"><?= e($svc['period']) ?></p>
+            <a class="btn-buy" href="<?= e($telegram['url']) ?>" target="_blank" rel="noopener"
+               aria-label="<?= e($svc['name']) ?> — <?= (int) $svc['price'] ?> stars. Написать в Telegram">
+              <?= icon_svg('send') ?> Написать в Telegram
+            </a>
+          </article>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+
+    <!-- Как оформить -->
+    <section class="section" id="how" aria-label="Как оформить заказ">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Как оформить</p>
+          <h2>Три шага до покупки</h2>
+        </div>
+        <div class="steps">
+          <?php foreach ($steps as $i => $step): ?>
+          <div class="step reveal">
+            <span class="step-num">0<?= $i + 1 ?></span>
+            <h3><?= e($step['title']) ?></h3>
+            <p><?= e($step['text']) ?></p>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" id="faq" aria-label="Частые вопросы">
+      <div class="container">
+        <div class="section-head reveal">
+          <p class="eyebrow">Вопросы</p>
+          <h2>Частые вопросы</h2>
+        </div>
+        <div class="faq reveal">
+          <?php foreach ($faq as $item): ?>
+          <details>
+            <summary><?= e($item['q']) ?> <?= icon_svg('plus') ?></summary>
+            <p class="faq-a"><?= e($item['a']) ?></p>
+          </details>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Футер -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand"><span class="logo-badge"><?= icon_svg('orbit') ?></span> Winstonovsky</div>
+        <p class="footer-copy">© <?= date('Y') ?> Winstonovsky. Все права защищены.</p>
+      </div>
+      <p class="footer-note"><?= star_svg() ?> Все цены указаны в Telegram Stars</p>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ============================ ЗВЁЗДНОЕ НЕБО ============================ */
+(function () {
+  var canvas = document.getElementById('starfield');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var COLORS = ['255,255,255', '255,255,255', '255,255,255', '196,181,253', '240,171,252', '103,232,249'];
+  var stars = [], meteors = [];
+  var w = 0, h = 0, rafId = 0, lastTime = 0, nextMeteorAt = 0;
+
+  function spawnStars() {
+    var count = Math.min(240, Math.round((w * h) / 6500));
+    stars = [];
+    for (var i = 0; i < count; i++) {
+      stars.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: Math.random() * 1.3 + 0.4,
+        baseAlpha: Math.random() * 0.5 + 0.3,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.random() * 1.1 + 0.4,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)]
+      });
+    }
+  }
+
+  function resize() {
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    spawnStars();
+    if (reduced) drawStatic();
+  }
+
+  function drawStatic() {
+    ctx.clearRect(0, 0, w, h);
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + s.color + ',' + s.baseAlpha.toFixed(3) + ')';
+      ctx.fill();
+    }
+  }
+
+  function spawnMeteor() {
+    var fromLeft = Math.random() < 0.5;
+    meteors.push({
+      x: fromLeft ? Math.random() * w * 0.4 : w * (0.6 + Math.random() * 0.4),
+      y: Math.random() * h * 0.35,
+      vx: (fromLeft ? 1 : -1) * (5 + Math.random() * 3),
+      vy: 2.6 + Math.random() * 2,
+      life: 0,
+      maxLife: 60 + Math.random() * 30
+    });
+  }
+
+  function frame(time) {
+    var dt = lastTime ? Math.min((time - lastTime) / 16.7, 3) : 1;
+    lastTime = time;
+    ctx.clearRect(0, 0, w, h);
+
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      s.phase += 0.016 * s.speed * dt;
+      var alpha = Math.max(s.baseAlpha * (0.55 + 0.45 * Math.sin(s.phase)), 0.05);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + s.color + ',' + alpha.toFixed(3) + ')';
+      ctx.fill();
+    }
+
+    if (time > nextMeteorAt) {
+      spawnMeteor();
+      nextMeteorAt = time + 3200 + Math.random() * 4200;
+    }
+
+    var alive = [];
+    for (var j = 0; j < meteors.length; j++) {
+      var m = meteors[j];
+      m.life += dt;
+      if (m.life >= m.maxLife) continue;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      var fade = Math.max(1 - m.life / m.maxLife, 0);
+      var tailX = m.x - m.vx * 15, tailY = m.y - m.vy * 15;
+      var grad = ctx.createLinearGradient(m.x, m.y, tailX, tailY);
+      grad.addColorStop(0, 'rgba(255,255,255,' + (0.9 * fade).toFixed(3) + ')');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(m.x, m.y);
+      ctx.lineTo(tailX, tailY);
+      ctx.stroke();
+      alive.push(m);
+    }
+    meteors = alive;
+    rafId = window.requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  if (!reduced) rafId = window.requestAnimationFrame(frame);
+})();
+
+/* ============================ ПОЯВЛЕНИЕ БЛОКОВ ============================ */
+(function () {
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var items = document.querySelectorAll('.reveal');
+  if (reduced || !('IntersectionObserver' in window)) {
+    for (var i = 0; i < items.length; i++) items[i].classList.add('visible');
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  for (var j = 0; j < items.length; j++) io.observe(items[j]);
+})();
+</script>
+</body>
+</html>
